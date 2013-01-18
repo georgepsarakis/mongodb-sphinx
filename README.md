@@ -15,10 +15,10 @@ TODO
 Priority tasks are marked as bold:
 
 * __Read parameters from the Sphinx configuration file (e.g. the indexer step, fields & attributes etc)__
-* MVA support
 * __Decomposed IDs: could they be stored in an MVA__
 * More logging/debugging info
 * __Support multiple collections__
 * __Tests__
-* Sample BSON dump
 * __Create appropriate wrapper of sphinxapi.py for fetching search results__
+* Sample BSON dump
+* MVA support
