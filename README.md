@@ -15,7 +15,6 @@ TODO
 Priority tasks are marked as bold:
 
 * __Read parameters from the Sphinx configuration file (e.g. the indexer step, fields & attributes etc)__
-* __Decomposed IDs: could they be stored in an MVA__
 * More logging/debugging info
 * __Support multiple collections__
 * __Tests__
