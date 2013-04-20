@@ -1,6 +1,12 @@
-from pymongo import objectid
+from bson import objectid
 
+'''
+  Class that handles decomposition-recomposition of a MongoDB _id field
+  Based on the blog article:
+  http://devopslog.wordpress.com/2012/04/22/disassemblingreassembling-mongodb-objectids/
+'''
 class mongoid(objectid.ObjectId):
+
   def decompose(self):
     o_str = str(self)
     id_time = int(o_str[0:8], 16)

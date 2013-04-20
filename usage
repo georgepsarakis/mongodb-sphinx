@@ -1,0 +1,2 @@
+./mongodb-sphinx.py -d stackoverflow -c posts --text-fields profile_image link --attributes last_activity_date _id --attribute-types timestamp string --timestamp-from=1366045854 --id-field=post_id
+./mongodb-sphinx.py -d stackoverflow -c posts --text-fields profile_image link --attributes last_activity_date _id --attribute-types timestamp string --timestamp-from=1366045854 --timestamp-until=1366645854 --id-field=post_id
