@@ -34,6 +34,7 @@ def get_args():
     parser.add_argument( "-s", "--step", help = "Indexing step (increment for timestamp values)", type = int, default = 500 )
     parser.add_argument( "--id-field", help = "Which field to use as a document ID. If left blank, an auto-increment integer will be used.",  )
     parser.add_argument( "--attribute-types", help = "Attribute types. You should specify all types for --attributes.", nargs = '*')
+    parser.add_argument( "--threads", help = "Concurrent MongoDB connections", type = int, default = 1)
     args = parser.parse_args()
   except Exception as e:
     print e

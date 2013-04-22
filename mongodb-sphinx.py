@@ -4,25 +4,47 @@ from libraries.helper import *
 from libraries.xmldoc import xmldoc
 from libraries.mongoid import mongoid
 from pymongo import MongoClient
+from multiprocessing import Process, Manager
+
+def mfetch(R, collection, operators, timestamp_from, timestamp_until):
+  try:
+    id_limits = get_id_boundaries({ 'from' : timestamp_from, 'until' : timestamp_until })
+    condition = { "_id" : { operators[0] : id_limits[0] , operators[1] : id_limits[1] } }
+    r = collection.find( condition )
+    resultset = []
+    if r:
+      for row in r:
+        resultset.append(row)
+    R.append(resultset)
+  except Exception as e:
+    print 'Error while fetching MongoDB records: ', e
+    sys.exit(1)
 
 class MongoSphinx(object):
   Params = None
-  MConnection = None
+  MConnections = []
+  MCollections = []
+  Results = []
+  ResultsetManager = None  
   XMLBuilder = None
-  MCollection = None
   Fields = []
   Attributes = {}
+  Threads = 1
   DefaultAttributes = [ 'date_inserted', 'machine', 'pid', 'inc' ]
-
+   
   def __init__(self, args, **kwargs):
     start_time = time.time()
     self.Params = args
-   # Connection to the MongoDB server
-    self.MConnection = MongoClient(self.Params.host, self.Params.port)
-    # Select database and collection
-    db = self.MConnection[self.Params.database]
-    # TODO: support for multiple collections
-    self.MCollection = db[self.Params.collection]
+    self.Threads = self.Params.threads
+    self.ResultsetManager = Manager()
+    self.Results = self.ResultsetManager.list()
+    for n in range(self.Threads):
+      # Connection to the MongoDB server
+      self.MConnections.append(MongoClient(self.Params.host, self.Params.port))
+      # Select database and collection
+      db = self.MConnections[-1][self.Params.database]
+      # TODO: support for multiple collections
+      self.MCollections.append(db[self.Params.collection])
     # Get text fields and attributes
     self.Fields = self.Params.text_fields
     self.Attributes = get_attributes(self.Params)
@@ -43,18 +65,21 @@ class MongoSphinx(object):
       self.XMLBuilder.l_add('attr', '', **meta)
     self.XMLBuilder.l_end('schema')
 
-  ''' Fetch records from MongoDB '''  
-  def fetch(self, timestamp_from, timestamp_until):
+  def fetch(self, timestamp_sets):
     try:
-      id_limits = get_id_boundaries({ 'from' : timestamp_from, 'until' : timestamp_until })
-      if timestamp_until < self.Params.timestamp_until:
-        operator = "$lt"
-      else:
-        operator = "$lte"
-      condition = { "_id" : { "$gte" : id_limits[0] , operator : id_limits[1] } }
-      return self.MCollection.find( condition )
+      processes = []       
+      self.Results = self.ResultsetManager.list()
+      for index, timestamps in enumerate(timestamp_sets):
+        operators = [ "$gte", "$lte" ]
+        if timestamps[1] < self.Params.timestamp_until:
+          operators[1] = "$lt"
+        p = Process(target = mfetch, args = (self.Results, self.MCollections[index], operators, timestamps[0], timestamps[1]))
+        processes.append(p)
+      for p in processes:
+        p.start()
+      for p in processes:
+        p.join()
     except Exception as e:
-      print self.Params
       print 'Error while fetching MongoDB records: ', e
       sys.exit(1)
  
@@ -84,14 +109,15 @@ class MongoSphinx(object):
     for attr in self.DefaultAttributes:
       default_attrs[attr] = ''
     while ( timestamp_until < self.Params.timestamp_until ):
-      queries += 1
-      mongotime -= time.time()
-      r = self.fetch(timestamp_from, timestamp_until)
-      mongotime += time.time()
-      timestamp_from = timestamp_until
-      timestamp_until += self.Params.step
+      timestamp_sets = []
+      for n in range(self.Threads):
+        if timestamp_until < self.Params.timestamp_until:          
+          timestamp_sets.append([ timestamp_from, timestamp_until ])
+          timestamp_from = timestamp_until
+          timestamp_until += self.Params.step
+      self.fetch(timestamp_sets)
       looptime -= time.time() 
-      if r:
+      for r in self.Results:
         for row in r:
           xmlbuildtime -= time.time()
           if self.Params.id_field is None:
@@ -112,26 +138,21 @@ class MongoSphinx(object):
           self.XMLBuilder.add_by_template(row)
           xmlbuildtime += time.time()
           doc_counter += 1      
-      r = None
-      flushtime -= time.time()
       self.XMLBuilder.tostring()
-      flushtime += time.time()
       if doc_counter % self.Params.step == 0:
         logging.info("Fetched %d records" % (doc_counter,))
         logging.info("Timestamp Limits [%d, %d]" % (timestamp_from, timestamp_until))
       looptime += time.time()
     self.XMLBuilder.tostring(True)
-    logging.info("Total MongoDB Time: %12.6fsec for %d queries" % ( mongotime, queries ))
     logging.info("Total XML Build Time: %12.6fsec" % ( xmlbuildtime, ))
     logging.info("Total XML Resultset Loop Time: %12.6fsec" % ( looptime, ))
-    logging.info("Total XML Flushing Time: %12.6fsec" % ( flushtime, ))
 
 if __name__ == '__main__':
   start_time = time.time()
   # Get command line parameters
   args = get_args()
   # TODO: add parameters for logging
-  logging.basicConfig(filename = 'progress.log', level = logging.DEBUG, format = '%(asctime)s %(message)s', datefmt = "%d-%m-%Y %H:%M:%S")
+  logging.basicConfig(filename = 'progress.log', level = logging.DEBUG, format = '%(asctime)s %(message)s', datefmt = "%d/%m/%Y %H:%M:%S")
   MSphinx = MongoSphinx(args)
   MSphinx.xmlpipe2()
   logging.info('Total script time %12.6fsec' % (time.time() - start_time,))

@@ -22,6 +22,9 @@ CHANGELOG
     - Sample JSON Data Download from StackOverflow API
     - Sample JSON Data Importer to MongoDB
 
+* 22/4/2013
+    - Added multiple connection support. Needs testing on multi-core system.
+
 TODO
 ----
 Priority tasks are marked as bold:
